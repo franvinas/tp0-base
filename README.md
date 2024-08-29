@@ -88,6 +88,16 @@ python3 mi-generador.py $1 $2
 Modificar el cliente y el servidor para lograr que realizar cambios en el archivo de configuración no requiera un nuevo build de las imágenes de Docker para que los mismos sean efectivos. La configuración a través del archivo correspondiente (`config.ini` y `config.yaml`, dependiendo de la aplicación) debe ser inyectada en el container y persistida afuera de la imagen (hint: `docker volumes`).
 
 
+#### Solución:
+Se puede hacer un nuevo build de la imagen de Docker usando el siguiente comando:
+```sh
+make docker-image
+```
+Con el cambio aplicado en el `docker-compose-dev.yaml` se pueden editar los archivos de configuración del cliente y servidor sin que sea necesario realizar un nuevo build para que los mismos sean efectivos. Para levantar los containers sin realizar un nuevo build se puede utilizar el siguiente comando:
+```sh
+docker compose -f docker-compose-dev.yaml up -d
+```
+
 
 ### Ejercicio N°3:
 Crear un script de bash `validar-echo-server.sh` que permita verificar el correcto funcionamiento del servidor utilizando el comando `netcat` para interactuar con el mismo. Dado que el servidor es un EchoServer, se debe enviar un mensaje al servidor y esperar recibir el mismo mensaje enviado.
