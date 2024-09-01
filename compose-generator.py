@@ -8,7 +8,6 @@ def generate_client(client_id):
     entrypoint: /client
     environment:
       - CLI_ID={client_id}
-      - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
@@ -27,7 +26,6 @@ services:
     entrypoint: python3 /main.py
     environment:
       - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
     volumes:
       - ./server/config.ini:/config.ini
     networks:
