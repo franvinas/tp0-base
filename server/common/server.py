@@ -1,5 +1,6 @@
-import socket
 import logging
+import signal
+import socket
 
 
 class Server:
@@ -8,6 +9,10 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        self._is_running = True
+
+        signal.signal(signal.SIGINT, self.__shutdown)
+        signal.signal(signal.SIGTERM, self.__shutdown)
 
     def run(self):
         """
@@ -18,11 +23,9 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        # TODO: Modify this program to handle signal to graceful shutdown
-        # the server
-        while True:
-            client_sock = self.__accept_new_connection()
-            self.__handle_client_connection(client_sock)
+        while self._is_running:
+            if client_sock := self.__accept_new_connection():
+                self.__handle_client_connection(client_sock)
 
     def __handle_client_connection(self, client_sock):
         """
@@ -41,7 +44,8 @@ class Server:
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
-            client_sock.close()
+            if client_sock:
+                client_sock.close()
 
     def __accept_new_connection(self):
         """
@@ -51,8 +55,23 @@ class Server:
         Then connection created is printed and returned
         """
 
+        if not self._is_running:
+            return None
         # Connection arrived
         logging.info('action: accept_connections | result: in_progress')
-        c, addr = self._server_socket.accept()
+        try:
+            c, addr = self._server_socket.accept()
+        except OSError as e:
+            if not self._is_running:
+                return None
+            logging.error(f'action: accept_connections | result: fail | error: {e}')
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c
+
+    def __shutdown(self, signum, frame):
+        """
+        Graceful shutdown of the server on receiving a signal.
+        """
+        logging.debug(f"action: shutdown | result: in_progress | signal: {signum}")
+        self._is_running = False
+        self._server_socket.close()
