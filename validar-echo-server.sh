@@ -1,2 +1,3 @@
 #!/bin/bash
-docker compose -f nc/docker-compose.yaml up 2>/dev/null | grep "action" | cut -d'|' -f2- | sed 's/^ //'
+docker build -t validate-server nc/ > /dev/null 2>&1
+docker run --rm --network tp0_testing_net --name validate-server validate-server
