@@ -90,6 +90,17 @@ func PrintConfig(v *viper.Viper) {
 	)
 }
 
+func InitBet() common.Bet {
+	return common.Bet{
+		Agency:    os.Getenv("AGENCY"),
+		Name:      os.Getenv("NAME"),
+		Surname:   os.Getenv("SURNAME"),
+		Document:  os.Getenv("DOCUMENT"),
+		BirthDate: os.Getenv("BIRTHDATE"),
+		Number:    os.Getenv("NUMBER"),
+	}
+}
+
 func main() {
 	v, err := InitConfig()
 	if err != nil {
@@ -103,13 +114,15 @@ func main() {
 	// Print program config with debugging purposes
 	PrintConfig(v)
 
+	bet := InitBet()
+	bets := []common.Bet{bet}
+
 	clientConfig := common.ClientConfig{
 		ServerAddress: v.GetString("server.address"),
 		ID:            v.GetString("id"),
-		LoopAmount:    v.GetInt("loop.amount"),
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	client := common.NewClient(clientConfig, bets)
 	client.StartClientLoop()
 }

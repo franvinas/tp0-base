@@ -8,6 +8,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./server/config.ini:/config.ini
+      - ./server/bets.csv:/bets.csv
     networks:
       - testing_net
 
@@ -17,6 +18,8 @@ services:
     entrypoint: /client
     environment:
       - CLI_ID=1
+    env_file:
+      - ./client/.env
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:

@@ -143,6 +143,35 @@ Los campos deben enviarse al servidor para dejar registro de la apuesta. Al reci
 Emulará a la _central de Lotería Nacional_. Deberá recibir los campos de la cada apuesta desde los clientes y almacenar la información mediante la función `store_bet(...)` para control futuro de ganadores. La función `store_bet(...)` es provista por la cátedra y no podrá ser modificada por el alumno.
 Al persistir se debe imprimir por log: `action: apuesta_almacenada | result: success | dni: ${DNI} | numero: ${NUMERO}`.
 
+#### Solución:
+En primer lugar se debe hacer un build tanto del servidor como del cliente:
+```
+make docker-image
+```
+Luego, levantar el servidor:
+```
+docker compose -f docker-compose-dev.yaml up server -d
+```
+Por ultimo el cliente, el cliente recibe los datos relacionados a la apuesta por variable de entorno. Estos se pueden configurar en el archivo `client/.env`
+```
+# client/.env
+
+AGENCY=15
+NAME=Francisco
+SURNAME=V
+DOCUMENT=40404040
+BIRTHDATE=2000-01-01
+NUMBER=2323
+```
+
+Se puede levantar un cliente que enviará la apuesta de la siguiente forma:
+```
+docker compose -f docker-compose-dev.yaml up client1
+```
+
+El server recibe la apuesta y la agrega en el archivo `server/bets.csv`. Se crea un volumen para que los cambios efectuados en el archivo sean persistidos fuera de la imagen.
+
+
 #### Comunicación:
 Se deberá implementar un módulo de comunicación entre el cliente y el servidor donde se maneje el envío y la recepción de los paquetes, el cual se espera que contemple:
 * Definición de un protocolo para el envío de los mensajes.

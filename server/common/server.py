@@ -1,6 +1,9 @@
 import logging
 import signal
 import socket
+import uuid
+
+import common.utils as utils
 
 
 class Server:
@@ -10,6 +13,7 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._is_running = True
+        self._clients = {}
 
         signal.signal(signal.SIGINT, self.__shutdown)
         signal.signal(signal.SIGTERM, self.__shutdown)
@@ -25,7 +29,10 @@ class Server:
 
         while self._is_running:
             if client_sock := self.__accept_new_connection():
+                client_id = uuid.uuid4()
+                self._clients[client_id] = client_sock
                 self.__handle_client_connection(client_sock)
+                del self._clients[client_id]
 
     def __handle_client_connection(self, client_sock):
         """
@@ -35,14 +42,35 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
+            chunks = []
+            while chunk := client_sock.recv(4096):
+                logging.debug(
+                    f'action: receive_message | result: in_progress | chunk: {chunk}'
+                )
+                chunks.append(chunk)
+                if b'\n' in chunk:
+                    break
+
+            msg = b''.join(chunks).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            logging.info(
+                f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}'
+            )
+            bet = utils.decode_bet(msg)
+            utils.store_bets([bet])
+
+            confirmation_msg = 'OK\n'.encode('utf-8')
+            total_sent = 0
+            while total_sent < len(confirmation_msg):
+                sent = client_sock.send(confirmation_msg[total_sent:])
+                if sent == 0:
+                    logging.error(
+                        'action: receive_message | result: fail | error: Connection closed by client'
+                    )
+                    return
+                total_sent += sent
         except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+            logging.error('action: receive_message | result: fail | error: {e}')
         finally:
             if client_sock:
                 client_sock.close()
@@ -72,6 +100,8 @@ class Server:
         """
         Graceful shutdown of the server on receiving a signal.
         """
-        logging.debug(f"action: shutdown | result: in_progress | signal: {signum}")
+        logging.debug(f'action: shutdown | result: in_progress | signal: {signum}')
         self._is_running = False
         self._server_socket.close()
+        for client_sock in self._clients.values():
+            client_sock.close()

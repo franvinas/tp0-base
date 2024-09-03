@@ -49,3 +49,10 @@ def load_bets() -> list[Bet]:
         for row in reader:
             yield Bet(row[0], row[1], row[2], row[3], row[4], row[5])
 
+
+"""
+Decodes a bet from a string to a Bet object.
+"""
+def decode_bet(bet: str) -> Bet:
+    bet = bet.split(',')
+    return Bet(bet[0], bet[1], bet[2], bet[3], bet[4], bet[5])
