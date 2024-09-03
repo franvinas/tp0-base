@@ -74,7 +74,7 @@ func (c *Client) StartClientLoop() {
 
 		bet := c.bets[i]
 		encoded_bet := bet.Encode()
-		log.Debugf("action: send_bet | result: pending | client_id: %v | bet: %s", c.config.ID, encoded_bet)
+		log.Debugf("action: send_bet | result: pending | client_id: %v | bet: %v", c.config.ID, encoded_bet)
 		err = c.SendBytesToServer(encoded_bet)
 		if err != nil {
 			log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
@@ -83,6 +83,7 @@ func (c *Client) StartClientLoop() {
 		log.Infof("action: send_bet | result: success | client_id: %v | bet: %v", c.config.ID, bet.Encode())
 
 		c.receiveConfirmation()
+		log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", bet.Document, bet.Number)
 
 		// Wait a time between sending one message and the next one
 		timer := time.NewTimer(c.config.LoopPeriod)

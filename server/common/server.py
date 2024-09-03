@@ -63,6 +63,9 @@ class Server:
                 f'action: receive_message | result: success | ip: {addr[0]} | bet: {bet.__dict__}'
             )
             utils.store_bets([bet])
+            logging.info(
+                f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}'
+            )
 
             confirmation_data = 1
             confirmation_byte = confirmation_data.to_bytes(1, byteorder='little')
