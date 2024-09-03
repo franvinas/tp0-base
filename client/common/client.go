@@ -1,8 +1,6 @@
 package common
 
 import (
-	"bufio"
-	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -75,28 +73,16 @@ func (c *Client) StartClientLoop() {
 		}
 
 		bet := c.bets[i]
-		err = c.SendBetToServer(bet)
+		encoded_bet := bet.Encode()
+		log.Debugf("action: send_bet | result: pending | client_id: %v | bet: %s", c.config.ID, encoded_bet)
+		err = c.SendBytesToServer(encoded_bet)
 		if err != nil {
 			log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
 			break
 		}
 		log.Infof("action: send_bet | result: success | client_id: %v | bet: %v", c.config.ID, bet.Encode())
 
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_confirmation | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-			return
-		}
-
-		log.Infof("action: receive_confirmation | result: success | client_id: %v | message: %v",
-			c.config.ID,
-			msg,
-		)
+		c.receiveConfirmation()
 
 		// Wait a time between sending one message and the next one
 		timer := time.NewTimer(c.config.LoopPeriod)
@@ -112,14 +98,12 @@ func (c *Client) StartClientLoop() {
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
-func (c *Client) SendBetToServer(bet Bet) error {
-	data := bet.Encode()
-	log.Debugf("action: send_bet | result: pending | client_id: %v | bet: %v", c.config.ID, data)
+func (c *Client) SendBytesToServer(data []byte) error {
 	bytesWritten := 0
 	dataLen := len(data)
 
 	for bytesWritten < dataLen {
-		n, err := fmt.Fprintf(c.conn, "%s", data[bytesWritten:])
+		n, err := c.conn.Write(data[bytesWritten:])
 		if err != nil {
 			return err
 		}
@@ -130,6 +114,26 @@ func (c *Client) SendBetToServer(bet Bet) error {
 	}
 
 	return nil
+}
+
+func (c *Client) receiveConfirmation() {
+	var data [1]byte
+	_, err := c.conn.Read(data[:])
+	if err != nil {
+		log.Errorf("action: receive_confirmation | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return
+	}
+	msg := data[0]
+
+	c.conn.Close()
+
+	log.Infof("action: receive_confirmation | result: success | client_id: %v | message: %v",
+		c.config.ID,
+		msg,
+	)
 }
 
 func (c *Client) handleSignals() {

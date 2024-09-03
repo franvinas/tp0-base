@@ -43,32 +43,35 @@ class Server:
         """
         try:
             chunks = []
-            while chunk := client_sock.recv(4096):
-                logging.debug(
-                    f'action: receive_message | result: in_progress | chunk: {chunk}'
-                )
-                chunks.append(chunk)
-                if b'\n' in chunk:
-                    break
+            bytes_received = 0
 
-            msg = b''.join(chunks).rstrip().decode('utf-8')
+            while bytes_received < utils.ENCODED_BET_SIZE:
+                chunk = client_sock.recv(utils.ENCODED_BET_SIZE - bytes_received)
+                if not chunk:
+                    break
+                logging.debug(f'action: receive_message | result: in_progress | chunk: {chunk}')
+                chunks.append(chunk)
+                bytes_received += len(chunk)
+
+            encoded_bet = b''.join(chunks)
             addr = client_sock.getpeername()
             logging.info(
-                f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}'
+                f'action: receive_message | result: success | ip: {addr[0]} | msg: {encoded_bet}'
             )
-            bet = utils.decode_bet(msg)
+            bet = utils.decode_bet(encoded_bet)
+            logging.debug(
+                f'action: receive_message | result: success | ip: {addr[0]} | bet: {bet.__dict__}'
+            )
             utils.store_bets([bet])
 
-            confirmation_msg = 'OK\n'.encode('utf-8')
-            total_sent = 0
-            while total_sent < len(confirmation_msg):
-                sent = client_sock.send(confirmation_msg[total_sent:])
-                if sent == 0:
-                    logging.error(
-                        'action: receive_message | result: fail | error: Connection closed by client'
-                    )
-                    return
-                total_sent += sent
+            confirmation_data = 1
+            confirmation_byte = confirmation_data.to_bytes(1, byteorder='little')
+            sent = client_sock.send(confirmation_byte)
+            if sent == 0:
+                logging.error(
+                    'action: receive_message | result: fail | error: Connection closed by client'
+                )
+                return
         except OSError as e:
             logging.error('action: receive_message | result: fail | error: {e}')
         finally:

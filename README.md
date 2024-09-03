@@ -171,6 +171,14 @@ docker compose -f docker-compose-dev.yaml up client1
 
 El server recibe la apuesta y la agrega en el archivo `server/bets.csv`. Se crea un volumen para que los cambios efectuados en el archivo sean persistidos fuera de la imagen.
 
+El protocolo utilizado consiste en mensajes de tamaño fijo (77 bytes). Los mensajes están compuestos de la siguiente forma:
+- Agencia (uint8, 1 byte)
+- Nombre (string, 32 bytes)
+- Apellido (string, 32 bytes)
+- Documento (uint32, 4 bytes)
+- Fecha de nacimiento (uint32, 4 bytes). Ejemplo: 25 de Diciembre de 1998 --> 19981225
+- Numero de apuesta (uint32, 4 bytes)
+
 
 #### Comunicación:
 Se deberá implementar un módulo de comunicación entre el cliente y el servidor donde se maneje el envío y la recepción de los paquetes, el cual se espera que contemple:

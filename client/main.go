@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"strconv"
 	"time"
 
 	"github.com/op/go-logging"
@@ -90,15 +91,35 @@ func PrintConfig(v *viper.Viper) {
 	)
 }
 
-func InitBet() common.Bet {
-	return common.Bet{
-		Agency:    os.Getenv("AGENCY"),
-		Name:      os.Getenv("NAME"),
-		Surname:   os.Getenv("SURNAME"),
-		Document:  os.Getenv("DOCUMENT"),
-		BirthDate: os.Getenv("BIRTHDATE"),
-		Number:    os.Getenv("NUMBER"),
+func InitBet() (common.Bet, error) {
+	agency, err := strconv.ParseUint(os.Getenv("AGENCY"), 10, 8)
+	if err != nil {
+		return common.Bet{}, fmt.Errorf("invalid agency: %v", err)
 	}
+
+	name := os.Getenv("NAME")
+	surname := os.Getenv("SURNAME")
+
+	document, err := strconv.ParseUint(os.Getenv("DOCUMENT"), 10, 32)
+	if err != nil {
+		return common.Bet{}, fmt.Errorf("invalid document: %v", err)
+	}
+
+	birthDate := os.Getenv("BIRTHDATE")
+
+	number, err := strconv.ParseUint(os.Getenv("NUMBER"), 10, 32)
+	if err != nil {
+		return common.Bet{}, fmt.Errorf("invalid number: %v", err)
+	}
+
+	return common.Bet{
+		Agency:    uint8(agency),
+		Name:      name,
+		Surname:   surname,
+		Document:  uint32(document),
+		BirthDate: birthDate,
+		Number:    uint32(number),
+	}, nil
 }
 
 func main() {
@@ -114,7 +135,10 @@ func main() {
 	// Print program config with debugging purposes
 	PrintConfig(v)
 
-	bet := InitBet()
+	bet, err := InitBet()
+	if err != nil {
+		log.Criticalf("%s", err)
+	}
 	bets := []common.Bet{bet}
 
 	clientConfig := common.ClientConfig{
