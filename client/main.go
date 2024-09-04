@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -91,37 +90,6 @@ func PrintConfig(v *viper.Viper) {
 		v.GetString("log.level"),
 		v.GetInt("batch.maxAmount"),
 	)
-}
-
-func InitBet() (common.Bet, error) {
-	agency, err := strconv.ParseUint(os.Getenv("AGENCY"), 10, 8)
-	if err != nil {
-		return common.Bet{}, fmt.Errorf("invalid agency: %v", err)
-	}
-
-	name := os.Getenv("NAME")
-	surname := os.Getenv("SURNAME")
-
-	document, err := strconv.ParseUint(os.Getenv("DOCUMENT"), 10, 32)
-	if err != nil {
-		return common.Bet{}, fmt.Errorf("invalid document: %v", err)
-	}
-
-	birthDate := os.Getenv("BIRTHDATE")
-
-	number, err := strconv.ParseUint(os.Getenv("NUMBER"), 10, 32)
-	if err != nil {
-		return common.Bet{}, fmt.Errorf("invalid number: %v", err)
-	}
-
-	return common.Bet{
-		Agency:    uint8(agency),
-		Name:      name,
-		Surname:   surname,
-		Document:  uint32(document),
-		BirthDate: birthDate,
-		Number:    uint32(number),
-	}, nil
 }
 
 func main() {

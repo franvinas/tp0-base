@@ -9,7 +9,7 @@ STORAGE_FILEPATH = "./bets.csv"
 """ Simulated winner number in the lottery contest. """
 LOTTERY_WINNER_NUMBER = 7574
 
-ENCODED_BET_SIZE = 77
+ENCODED_BET_SIZE = 76
 
 
 """ A lottery bet registry. """
@@ -56,20 +56,19 @@ def load_bets() -> list[Bet]:
 """
 Decodes a bet from a string to a Bet object.
 """
-def decode_bet(encoded_bet: bytes) -> Bet:
+def decode_bet(encoded_bet: bytes, agency: str) -> Bet:
     LITTLE_ENDIAN_UINT = '<I'
 
-    if len(encoded_bet) != 77:
+    if len(encoded_bet) != ENCODED_BET_SIZE:
         raise ValueError("Invalid encoded bet size")
 
-    agency = encoded_bet[0]
-    first_name = encoded_bet[1:33].decode('utf-8').rstrip('\x00')
-    last_name = encoded_bet[33:65].decode('utf-8').rstrip('\x00')
-    document = struct.unpack(LITTLE_ENDIAN_UINT, encoded_bet[65:69])[0]
-    birthdate_int = struct.unpack(LITTLE_ENDIAN_UINT, encoded_bet[69:73])[0]
+    first_name = encoded_bet[:32].decode('utf-8').rstrip('\x00')
+    last_name = encoded_bet[32:64].decode('utf-8').rstrip('\x00')
+    document = struct.unpack(LITTLE_ENDIAN_UINT, encoded_bet[64:68])[0]
+    birthdate_int = struct.unpack(LITTLE_ENDIAN_UINT, encoded_bet[68:72])[0]
     birthdate_str = str(birthdate_int)
     birthdate = f'{birthdate_str[:4]}-{birthdate_str[4:6]}-{birthdate_str[6:8]}'
 
-    number = struct.unpack(LITTLE_ENDIAN_UINT, encoded_bet[73:77])[0]
+    number = struct.unpack(LITTLE_ENDIAN_UINT, encoded_bet[72:])[0]
 
     return Bet(agency, first_name, last_name, document, birthdate, number)

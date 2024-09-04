@@ -76,7 +76,7 @@ func (c *Client) StartClientLoop() error {
 
 		for scanner.Scan() {
 			line := scanner.Text()
-			bet, err := ParseBet(line, c.config.ID)
+			bet, err := ParseBet(line)
 			if err != nil {
 				log.Errorf("action: parse_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
 				break
@@ -95,7 +95,7 @@ func (c *Client) StartClientLoop() error {
 			return err
 		}
 
-		encoded_batch := EncodeBatch(bets)
+		encoded_batch := EncodeBatch(bets, c.config.ID)
 		log.Debugf("action: send_batch | result: pending | client_id: %v | batch_size: %v", c.config.ID, len(encoded_batch))
 		err = c.SendBytesToServer(encoded_batch)
 		if err != nil {

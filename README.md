@@ -202,7 +202,15 @@ El servidor, por otro lado, deberá responder con éxito solamente si todas las 
 #### Solución:
 En primer lugar se debe extraer los archivos dentros de `.data/dataset.zip` dentro del mismo directorio `.data/`. Los clientes tienen un volumen montado en `.data/` por lo que se podria agregar nuevas agencias o modificar los datos existentes sin la necesidad de hacer un nuevo build.
 
-En este ejercicio se agregar la funcionalidad de enviar batchs de apuestas al servidor. Cada batch es de un máxmimo de 8kb, es decir 106 apuestas (cada mensaje de apuesta es de 77 bytes, floor(8 * 1024 / 77) = 106). El primer byte de cada batch se usa para indicar la cantidad de apuestas enviadas en el batch, los bytes siguientes son las apuestas concatenadas. Por lo tanto el tamaño en bytes de un batch es 1 + cantidad_de_apuestas_enviadas * 77 bytes.
+En este ejercicio se agregar la funcionalidad de enviar batchs de apuestas al servidor.
+La estructura de cada batch es la siguiente:
+- 1 byte para identificar a la agencia que está enviando el batch
+- 1 byte para indicar la cantidad de apuestas que se envia en el batch
+- cantidad_de_apuestas * 76 bytes para la data de las apuestas
+
+Las apuestas pasan a ser de 76 bytes porque ya no contienen el identificador de la agencia. El id de agencia se manda una única vez por batch.
+
+Cada batch es de un máxmimo de 8kb, es decir 107 apuestas (cada mensaje de apuesta es de 76 bytes entonces `(8 * 1024 - 2) // 76 = 107`).
 
 Se asume que el CLI_ID que reciben los clientes como variable de entorno es el identificador de la agencia y que este puede ser representado como un `uint8`.
 

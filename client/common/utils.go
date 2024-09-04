@@ -8,7 +8,6 @@ import (
 )
 
 type Bet struct {
-	Agency    uint8
 	Name      string
 	Surname   string
 	Document  uint32
@@ -18,8 +17,6 @@ type Bet struct {
 
 func (bet Bet) Encode() []byte {
 	buf := new(bytes.Buffer)
-
-	binary.Write(buf, binary.LittleEndian, bet.Agency)
 
 	nameBytes := []byte(bet.Name)
 	if len(nameBytes) > 32 {
@@ -50,7 +47,7 @@ func (bet Bet) Encode() []byte {
 	return buf.Bytes()
 }
 
-func ParseBet(line string, agency string) (Bet, error) {
+func ParseBet(line string) (Bet, error) {
 	parts := strings.Split(line, ",")
 
 	name := parts[0]
@@ -65,10 +62,7 @@ func ParseBet(line string, agency string) (Bet, error) {
 		return Bet{}, err
 	}
 
-	agency_uint, _ := strconv.ParseUint(agency, 10, 8)
-
 	bet := Bet{
-		Agency:    uint8(agency_uint),
 		Name:      name,
 		Surname:   surname,
 		Document:  uint32(document),
@@ -78,8 +72,11 @@ func ParseBet(line string, agency string) (Bet, error) {
 	return bet, nil
 }
 
-func EncodeBatch(bets []Bet) []byte {
+func EncodeBatch(bets []Bet, agency string) []byte {
 	buf := new(bytes.Buffer)
+
+	agency_uint, _ := strconv.ParseUint(agency, 10, 8)
+	binary.Write(buf, binary.LittleEndian, uint8(agency_uint))
 
 	binary.Write(buf, binary.LittleEndian, uint8(len(bets)))
 

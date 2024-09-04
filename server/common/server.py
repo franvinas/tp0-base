@@ -41,12 +41,12 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
-        max_batch_size = 106
+        max_batch_size = (8 * 1024 - 2) // utils.ENCODED_BET_SIZE
         try:
             chunks = []
             bytes_received = 0
-            max_bytes_to_receive = utils.ENCODED_BET_SIZE * max_batch_size + 1
-            batch_size = None
+            max_bytes_to_receive = utils.ENCODED_BET_SIZE * max_batch_size + 2
+            agency_id, batch_size = None, None
 
             while bytes_received < max_bytes_to_receive:
                 chunk = client_sock.recv(max_bytes_to_receive - bytes_received)
@@ -56,19 +56,23 @@ class Server:
                     f'action: receive_message | result: in_progress | chunk_size: {len(chunk)}'
                 )
                 bytes_received += len(chunk)
-                if batch_size is None:
-                    batch_size = chunk[0]
-                    max_bytes_to_receive = utils.ENCODED_BET_SIZE * batch_size + 1
-                    chunk = chunk[1:]
+                if agency_id is None:
+                    agency_id = chunk[0]
+                    batch_size = chunk[1]
+                    max_bytes_to_receive = utils.ENCODED_BET_SIZE * batch_size + 2
+                    chunk = chunk[2:]
                 chunks.append(chunk)
 
             encoded_bets = b''.join(chunks)
             addr = client_sock.getpeername()
             logging.info(
-                f'action: receive_message | result: success | ip: {addr[0]} | bets_size: {len(encoded_bets)} | bets_count: {len(encoded_bets) / utils.ENCODED_BET_SIZE}'
+                f'action: receive_message | result: success | ip: {addr[0]} | agency: {agency_id} | bets_size: {len(encoded_bets)} | bets_count: {len(encoded_bets) / utils.ENCODED_BET_SIZE}'
             )
             bets = [
-                utils.decode_bet(encoded_bets[i : i + utils.ENCODED_BET_SIZE])
+                utils.decode_bet(
+                    encoded_bets[i : i + utils.ENCODED_BET_SIZE],
+                    agency_id,
+                )
                 for i in range(0, len(encoded_bets), utils.ENCODED_BET_SIZE)
             ]
 
