@@ -10,6 +10,7 @@ def generate_client(client_id):
       - CLI_ID={client_id}
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data:/data
     networks:
       - testing_net
     depends_on:
@@ -28,6 +29,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./server/config.ini:/config.ini
+      - ./server/bets.csv:/bets.csv
     networks:
       - testing_net
 

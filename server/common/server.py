@@ -41,30 +41,40 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
+        max_batch_size = 106
         try:
             chunks = []
             bytes_received = 0
+            max_bytes_to_receive = utils.ENCODED_BET_SIZE * max_batch_size + 1
+            batch_size = None
 
-            while bytes_received < utils.ENCODED_BET_SIZE:
-                chunk = client_sock.recv(utils.ENCODED_BET_SIZE - bytes_received)
+            while bytes_received < max_bytes_to_receive:
+                chunk = client_sock.recv(max_bytes_to_receive - bytes_received)
                 if not chunk:
                     break
-                logging.debug(f'action: receive_message | result: in_progress | chunk: {chunk}')
-                chunks.append(chunk)
+                logging.debug(
+                    f'action: receive_message | result: in_progress | chunk_size: {len(chunk)}'
+                )
                 bytes_received += len(chunk)
+                if batch_size is None:
+                    batch_size = chunk[0]
+                    max_bytes_to_receive = utils.ENCODED_BET_SIZE * batch_size + 1
+                    chunk = chunk[1:]
+                chunks.append(chunk)
 
-            encoded_bet = b''.join(chunks)
+            encoded_bets = b''.join(chunks)
             addr = client_sock.getpeername()
             logging.info(
-                f'action: receive_message | result: success | ip: {addr[0]} | msg: {encoded_bet}'
+                f'action: receive_message | result: success | ip: {addr[0]} | bets_size: {len(encoded_bets)} | bets_count: {len(encoded_bets) / utils.ENCODED_BET_SIZE}'
             )
-            bet = utils.decode_bet(encoded_bet)
-            logging.debug(
-                f'action: receive_message | result: success | ip: {addr[0]} | bet: {bet.__dict__}'
-            )
-            utils.store_bets([bet])
+            bets = [
+                utils.decode_bet(encoded_bets[i : i + utils.ENCODED_BET_SIZE])
+                for i in range(0, len(encoded_bets), utils.ENCODED_BET_SIZE)
+            ]
+
+            utils.store_bets(bets)
             logging.info(
-                f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}'
+                f'action: apuesta_almacenada | result: success | bets_count: {len(bets)}'
             )
 
             confirmation_data = 1

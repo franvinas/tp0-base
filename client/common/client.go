@@ -1,6 +1,8 @@
 package common
 
 import (
+	"bufio"
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -14,26 +16,25 @@ var log = logging.MustGetLogger("log")
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID            string
-	ServerAddress string
-	LoopPeriod    time.Duration
+	ID             string
+	ServerAddress  string
+	LoopPeriod     time.Duration
+	BatchMaxAmount int
 }
 
 // Client Entity that encapsulates how
 type Client struct {
 	config  ClientConfig
 	conn    net.Conn
-	bets    []Bet
 	running bool
 	stop    chan bool
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig, bets []Bet) *Client {
+func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config:  config,
-		bets:    bets,
 		running: true,
 		stop:    make(chan bool),
 	}
@@ -58,32 +59,53 @@ func (c *Client) createClientSocket() error {
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
+func (c *Client) StartClientLoop() error {
 	go c.handleSignals()
 
-	for i := 0; i < len(c.bets); i++ {
-		if !c.running {
-			log.Debugf("action: loop_stopped | result: success | client_id: %v", c.config.ID)
-			return
+	fileName := fmt.Sprintf("data/agency-%s.csv", c.config.ID)
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Criticalf("action: open_file | result: fail | error: %v", err)
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for c.running {
+		var bets []Bet
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			bet, err := ParseBet(line, c.config.ID)
+			if err != nil {
+				log.Errorf("action: parse_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
+				break
+			}
+			bets = append(bets, bet)
+			if len(bets) >= c.config.BatchMaxAmount {
+				break
+			}
+		}
+		if len(bets) == 0 {
+			break
 		}
 
 		err := c.createClientSocket()
 		if err != nil {
-			return
+			return err
 		}
 
-		bet := c.bets[i]
-		encoded_bet := bet.Encode()
-		log.Debugf("action: send_bet | result: pending | client_id: %v | bet: %v", c.config.ID, encoded_bet)
-		err = c.SendBytesToServer(encoded_bet)
+		encoded_batch := EncodeBatch(bets)
+		log.Debugf("action: send_batch | result: pending | client_id: %v | batch_size: %v", c.config.ID, len(encoded_batch))
+		err = c.SendBytesToServer(encoded_batch)
 		if err != nil {
-			log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
+			log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
 			break
 		}
-		log.Infof("action: send_bet | result: success | client_id: %v | bet: %v", c.config.ID, bet.Encode())
+		log.Infof("action: send_batch | result: success | client_id: %v | batch_size: %v", c.config.ID, len(encoded_batch))
 
 		c.receiveConfirmation()
-		log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", bet.Document, bet.Number)
+		log.Infof("action: batch_enviado | result: success | batch_size: %v", len(encoded_batch))
 
 		// Wait a time between sending one message and the next one
 		timer := time.NewTimer(c.config.LoopPeriod)
@@ -92,14 +114,16 @@ func (c *Client) StartClientLoop() {
 			continue
 		case <-c.stop:
 			log.Debugf("action: loop_stopped | result: success | client_id: %v", c.config.ID)
-			return
+			return nil
 		}
 
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	return nil
 }
 
 func (c *Client) SendBytesToServer(data []byte) error {
+	log.Debugf("action: send_bytes | result: pending | client_id: %v | data_size: %v", c.config.ID, len(data))
 	bytesWritten := 0
 	dataLen := len(data)
 
@@ -108,6 +132,7 @@ func (c *Client) SendBytesToServer(data []byte) error {
 		if err != nil {
 			return err
 		}
+		log.Debugf("action: send_bytes | result: success | client_id: %v | bytes_written: %v", c.config.ID, n)
 		bytesWritten += n
 		if bytesWritten >= dataLen {
 			break

@@ -199,7 +199,19 @@ La cantidad máxima de apuestas dentro de cada _batch_ debe ser configurable des
 
 El servidor, por otro lado, deberá responder con éxito solamente si todas las apuestas del _batch_ fueron procesadas correctamente.
 
+#### Solución:
+En primer lugar se debe extraer los archivos dentros de `.data/dataset.zip` dentro del mismo directorio `.data/`. Los clientes tienen un volumen montado en `.data/` por lo que se podria agregar nuevas agencias o modificar los datos existentes sin la necesidad de hacer un nuevo build.
 
+En este ejercicio se agregar la funcionalidad de enviar batchs de apuestas al servidor. Cada batch es de un máxmimo de 8kb, es decir 106 apuestas (cada mensaje de apuesta es de 77 bytes, floor(8 * 1024 / 77) = 106). El primer byte de cada batch se usa para indicar la cantidad de apuestas enviadas en el batch, los bytes siguientes son las apuestas concatenadas. Por lo tanto el tamaño en bytes de un batch es 1 + cantidad_de_apuestas_enviadas * 77 bytes.
+
+Se asume que el CLI_ID que reciben los clientes como variable de entorno es el identificador de la agencia y que este puede ser representado como un `uint8`.
+
+Para levantar el server con 5 clientes se debe hacer lo siguiente:
+```
+./generar-compose.sh docker-compose-dev.yaml 5
+make docker-compose-up
+```
+El servidor recibe las apuestas de las 5 agencias y las guarda en `server/bets.csv`
 
 ### Ejercicio N°7:
 Modificar los clientes para que notifiquen al servidor al finalizar con el envío de todas las apuestas y así proceder con el sorteo.
