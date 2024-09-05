@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -86,13 +87,17 @@ func (c *Client) StartClientLoop() error {
 				break
 			}
 		}
-		if len(bets) == 0 {
-			break
-		}
 
 		err := c.createClientSocket()
 		if err != nil {
 			return err
+		}
+
+		if len(bets) == 0 {
+			log.Infof("action: agency_finished | result: success | client_id: %v", c.config.ID)
+			c.SendBytesToServer(EncodeFinishedMessage(c.config.ID))
+			c.waitForWinners()
+			break
 		}
 
 		encoded_batch := EncodeBatch(bets, c.config.ID)
@@ -160,6 +165,28 @@ func (c *Client) receiveConfirmation() {
 		c.config.ID,
 		msg,
 	)
+}
+
+func (c *Client) waitForWinners() {
+	var data [1]byte
+	_, err := c.conn.Read(data[:])
+	if err != nil {
+		log.Errorf("action: receive_winners | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+	winnersCount := data[0]
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", winnersCount)
+
+	documents := make([]uint32, winnersCount)
+	err = binary.Read(c.conn, binary.LittleEndian, &documents)
+	if err != nil {
+		log.Errorf("action: receive_winners_docs | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+	for _, doc := range documents {
+		log.Debugf("action: receive_winners_docs | result: success | client_id: %v | doc: %v", c.config.ID, doc)
+	}
+
 }
 
 func (c *Client) handleSignals() {

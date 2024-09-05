@@ -1,7 +1,6 @@
 import csv
 import datetime
 import struct
-import time
 
 
 """ Bets storage location. """
@@ -72,3 +71,17 @@ def decode_bet(encoded_bet: bytes, agency: str) -> Bet:
     number = struct.unpack(LITTLE_ENDIAN_UINT, encoded_bet[72:])[0]
 
     return Bet(agency, first_name, last_name, document, birthdate, number)
+
+"""
+Returns the winner bets.
+"""
+def draw_winners():
+    return [bet for bet in load_bets() if has_won(bet)]
+
+
+def encode_winners(winners: list[Bet]) -> bytes:
+    winners_count = len(winners)
+    documents = b''.join(
+        [int(winner.document).to_bytes(4, 'little') for winner in winners]
+    )
+    return winners_count.to_bytes(1, 'little') + documents

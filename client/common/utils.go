@@ -86,3 +86,13 @@ func EncodeBatch(bets []Bet, agency string) []byte {
 
 	return buf.Bytes()
 }
+
+func EncodeFinishedMessage(agency string) []byte {
+	buf := new(bytes.Buffer)
+
+	agency_uint, _ := strconv.ParseUint(agency, 10, 8)
+	binary.Write(buf, binary.LittleEndian, uint8(agency_uint))
+	binary.Write(buf, binary.LittleEndian, uint8(0))
+
+	return buf.Bytes()
+}
