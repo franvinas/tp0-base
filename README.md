@@ -230,6 +230,10 @@ El servidor deberá esperar la notificación de las 5 agencias para considerar q
 Luego de este evento, podrá verificar cada apuesta con las funciones `load_bets(...)` y `has_won(...)` y retornar los DNI de los ganadores de la agencia en cuestión. Antes del sorteo, no podrá responder consultas por la lista de ganadores.
 Las funciones `load_bets(...)` y `has_won(...)` son provistas por la cátedra y no podrán ser modificadas por el alumno.
 
+#### Solución:
+Cuando una agencia termina de enviar todas sus apuestas y quiere recibir los ganadores de la loteria, debe enviar un mensaje de 2 bytes al servidor. El primer byte es para el identificador de la agencia y en el segundo byte debe enviar un 0. Cuando el servidor recibe un mensaje de este tipo (id de agencia + 0) deja la conexión por socket abierta. El servidor espera a que todas las agencias envien este mensaje, cuando eso sucede se realiza el sorteo. Despues del sorteo se le envia un mensaje a cada agencia con el siguiente formato:
+- 1 byte para indicar la cantidad de ganadores de la agencia que está recibiendo el mensaje (n_ganadores)
+- 4 * n_ganadores bytes para indicar los documentos de los ganadores
 
 
 ## Parte 3: Repaso de Concurrencia
