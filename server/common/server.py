@@ -1,7 +1,8 @@
 import logging
 import signal
 import socket
-import uuid
+from multiprocessing.pool import ThreadPool
+from threading import Event
 
 import common.utils as utils
 
@@ -15,6 +16,9 @@ class Server:
         self._total_agencies = total_agencies
         self._is_running = True
         self._clients = {}
+        self._winners = None
+        self._agencies_waiting = set()
+        self._all_agencies_waiting = Event()
 
         signal.signal(signal.SIGINT, self.__shutdown)
         signal.signal(signal.SIGTERM, self.__shutdown)
@@ -28,39 +32,46 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        while self._is_running:
-            if client_sock := self.__accept_new_connection():
-                client_id = uuid.uuid4()
-                self._clients[client_id] = {'socket': client_sock}
-                self.__handle_client_connection(client_sock, client_id)
-                if not self._clients[client_id].get('wating_winners'):
-                    if client_sock:
-                        client_sock.close()
-                    del self._clients[client_id]
+        with ThreadPool(processes=4) as pool:
+            while self._is_running:
+                if client_sock := self.__accept_new_connection():
+                    pool.apply_async(self.__handle_client_connection, (client_sock,))
 
-            if len(self._clients) == self._total_agencies and all(
-                [client['wating_winners'] for client in self._clients.values()]
-            ):
-                winners = utils.draw_winners()
-                winners_by_agency = {}
-                for winner in winners:
-                    if winner.agency not in winners_by_agency:
-                        winners_by_agency[winner.agency] = []
-                    winners_by_agency[winner.agency].append(winner)
-                for client in self._clients.values():
-                    agency_winners = winners_by_agency.get(client['agency'], [])
-                    logging.debug(
-                        f'action: send_winners | result: in_progress | agency: {client["agency"]} | winners: {len(agency_winners)}'
-                    )
-                    encoded_winners = utils.encode_winners(agency_winners)
-                    client['socket'].sendall(encoded_winners)
+    def __wait_for_winners(self, agency_id):
+        self._agencies_waiting.add(agency_id)
+        if len(self._agencies_waiting) == self._total_agencies:
+            self._winners = utils.draw_winners()
+            self._all_agencies_waiting.set()
+        else:
+            self._all_agencies_waiting.wait()
 
-                for client in self._clients.values():
-                    if client['socket']:
-                        client['socket'].close()
-                self._clients.clear()
+        agency_winners = [
+            winner for winner in self._winners if winner.agency == agency_id
+        ]
+        logging.debug(
+            f'action: send_winners | result: in_progress | agency: {agency_id} | winners: {len(agency_winners)}'
+        )
 
-    def __handle_client_connection(self, client_sock, client_id):
+        client_sock = self._clients.get(agency_id)
+        if not client_sock:
+            logging.error(
+                f'action: send_winners | result: fail | agency: {agency_id} | error: No client socket found'
+            )
+            return
+
+        encoded_winners = utils.encode_winners(agency_winners)
+        client_sock.sendall(encoded_winners)
+        addr = client_sock.getpeername()
+        logging.info(
+            f'action: send_winners | result: success | ip: {addr[0]} | agency: {agency_id} | winners: {len(agency_winners)}'
+        )
+        self._agencies_waiting.remove(agency_id)
+        if not self._agencies_waiting:
+            self._all_agencies_waiting.clear()
+            self._winners = None
+            self._clients.clear()
+
+    def __handle_client_connection(self, client_sock):
         """
         Read message from a specific client socket and closes the socket
 
@@ -87,15 +98,14 @@ class Server:
                     batch_size = chunk[1]
                     max_bytes_to_receive = utils.ENCODED_BET_SIZE * batch_size + 2
                     chunk = chunk[2:]
-                    wating_winners = batch_size == 0
-                    self._clients[client_id].update(
-                        {'agency': agency_id, 'wating_winners': wating_winners}
-                    )
-                    if wating_winners:
+                    self._clients[agency_id] = client_sock
+                    if batch_size == 0:
+                        # if batch_size is 0, it means that the agency is ready to receive winners
                         addr = client_sock.getpeername()
                         logging.debug(
                             f'action: ready_for_winners | result: success | ip: {addr[0]} | agency: {agency_id}'
                         )
+                        self.__wait_for_winners(agency_id)
                         return
                 chunks.append(chunk)
 
@@ -127,6 +137,10 @@ class Server:
                 return
         except OSError as e:
             logging.error('action: receive_message | result: fail | error: {e}')
+        finally:
+            if client_sock:
+                client_sock.close()
+                logging.debug('action: close_connection | result: success')
 
     def __accept_new_connection(self):
         """
@@ -156,8 +170,3 @@ class Server:
         logging.debug(f'action: shutdown | result: in_progress | signal: {signum}')
         self._is_running = False
         self._server_socket.close()
-        for client in self._clients.values():
-            if client['socket']:
-                client['socket'].close()
-        self._clients.clear()
-        logging.debug('action: shutdown | result: success')
