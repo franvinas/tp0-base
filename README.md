@@ -245,6 +245,11 @@ En este ejercicio es importante considerar los mecanismos de sincronización a u
 En caso de que el alumno implemente el servidor Python utilizando _multithreading_,  deberán tenerse en cuenta las [limitaciones propias del lenguaje](https://wiki.python.org/moin/GlobalInterpreterLock).
 
 
+#### Solución:
+Se utiliza un pool de threads en el servidor para procesar mensajes en paralelo. Cuando un cliente termina de enviar todas sus apuestas al servidor, le envia un ultimo mensaje al servidor pidiendole los documentos de los ganadores. El servidor recibe este mensaje y se queda esperando a que todos los clientes esten en esta misma situación. Cuando todos los clientes están listos para recibir a los ganadores, el servidor le envia un mensaje a cada uno con los documentos de los ganadores. Durante este tiempo el servidor mantiene la conexión abierta y la cierra luego de enviar a la lista de ganadores.
+
+Una vez que el servidor envia la lista de ganadores a todas las agencias, se cierran los sockets y el servidor esta listo para recibir nuevamente apuestas de las agencias.
+
 
 ## Consideraciones Generales
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios.El _fork_ deberá contar con una sección de README que indique como ejecutar cada ejercicio.
