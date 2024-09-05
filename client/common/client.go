@@ -174,19 +174,26 @@ func (c *Client) waitForWinners() {
 		log.Errorf("action: receive_winners | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
-	winnersCount := data[0]
+	winnersCount := uint8(data[0])
 	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", winnersCount)
 
-	documents := make([]uint32, winnersCount)
-	err = binary.Read(c.conn, binary.LittleEndian, &documents)
-	if err != nil {
-		log.Errorf("action: receive_winners_docs | result: fail | client_id: %v | error: %v", c.config.ID, err)
-		return
-	}
-	for _, doc := range documents {
-		log.Debugf("action: receive_winners_docs | result: success | client_id: %v | doc: %v", c.config.ID, doc)
+	buf := make([]byte, winnersCount*4)
+	bytesRead := 0
+	for bytesRead < int(winnersCount*4) {
+		n, err := c.conn.Read(buf[bytesRead:])
+		if err != nil {
+			log.Errorf("action: receive_winners_docs | result: fail | client_id: %v | error: %v", c.config.ID, err)
+			return
+		}
+		log.Debugf("action: receive_winners_docs | result: success | client_id: %v | bytes_read: %v", c.config.ID, n)
+		bytesRead += n
 	}
 
+	documents := make([]uint32, winnersCount)
+	for i := 0; i < int(winnersCount); i++ {
+		documents[i] = binary.LittleEndian.Uint32(buf[i*4 : (i+1)*4])
+		log.Debugf("action: receive_winners_docs | result: success | client_id: %v | doc: %v", c.config.ID, documents[i])
+	}
 }
 
 func (c *Client) handleSignals() {
