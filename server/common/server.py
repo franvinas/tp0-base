@@ -34,7 +34,7 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        with ThreadPool(processes=4) as pool:
+        with ThreadPool(processes=6) as pool:
             while self._is_running:
                 if client_sock := self.__accept_new_connection():
                     pool.apply_async(self.__handle_client_connection, (client_sock,))
@@ -85,7 +85,7 @@ class Server:
             return False
         return True
 
-    def __handle_client_connection(self, client_sock):
+    def __handle_client_connection(self, client_sock: socket.socket):
         """
         Read message from a specific client socket and closes the socket
 
