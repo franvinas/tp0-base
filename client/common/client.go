@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -56,7 +57,13 @@ func (c *Client) createClientSocket() error {
 		return err
 	}
 	c.conn = conn
+	log.Debugf("action: connect | result: success | client_id: %v", c.config.ID)
 	return nil
+}
+
+func (c *Client) CloseSocket() {
+	c.conn.Close()
+	log.Debugf("action: close_socket | result: success | client_id: %v", c.config.ID)
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
@@ -73,19 +80,9 @@ func (c *Client) StartClientLoop() error {
 
 	scanner := bufio.NewScanner(file)
 	for c.running {
-		var bets []Bet
-
-		for scanner.Scan() {
-			line := scanner.Text()
-			bet, err := ParseBet(line)
-			if err != nil {
-				log.Errorf("action: parse_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
-				break
-			}
-			bets = append(bets, bet)
-			if len(bets) >= c.config.BatchMaxAmount {
-				break
-			}
+		bets := c.LoadBetsFromFile(scanner)
+		if len(bets) == 0 {
+			break
 		}
 
 		err := c.createClientSocket()
@@ -93,24 +90,20 @@ func (c *Client) StartClientLoop() error {
 			return err
 		}
 
-		if len(bets) == 0 {
-			log.Infof("action: agency_finished | result: success | client_id: %v", c.config.ID)
-			c.SendBytesToServer(EncodeFinishedMessage(c.config.ID))
-			c.waitForWinners()
-			break
-		}
-
 		encoded_batch := EncodeBatch(bets, c.config.ID)
 		log.Debugf("action: send_batch | result: pending | client_id: %v | batch_size: %v", c.config.ID, len(encoded_batch))
 		err = c.SendBytesToServer(encoded_batch)
 		if err != nil {
 			log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
+			c.CloseSocket()
 			break
 		}
 		log.Infof("action: send_batch | result: success | client_id: %v | batch_size: %v", c.config.ID, len(encoded_batch))
 
-		c.receiveConfirmation()
+		c.ReceiveConfirmation()
 		log.Infof("action: batch_enviado | result: success | batch_size: %v", len(encoded_batch))
+
+		c.CloseSocket()
 
 		// Wait a time between sending one message and the next one
 		timer := time.NewTimer(c.config.LoopPeriod)
@@ -121,10 +114,37 @@ func (c *Client) StartClientLoop() error {
 			log.Debugf("action: loop_stopped | result: success | client_id: %v", c.config.ID)
 			return nil
 		}
-
 	}
+	log.Infof("action: agency_finished | result: success | client_id: %v", c.config.ID)
+
+	err = c.createClientSocket()
+	if err != nil {
+		return err
+	}
+	c.SendBytesToServer(EncodeFinishedMessage(c.config.ID))
+	c.waitForWinners()
+	c.CloseSocket()
+
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	return nil
+}
+
+func (c *Client) LoadBetsFromFile(scanner *bufio.Scanner) []Bet {
+	var bets []Bet
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		bet, err := ParseBet(line)
+		if err != nil {
+			log.Errorf("action: parse_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
+			break
+		}
+		bets = append(bets, bet)
+		if len(bets) >= c.config.BatchMaxAmount {
+			break
+		}
+	}
+	return bets
 }
 
 func (c *Client) SendBytesToServer(data []byte) error {
@@ -147,19 +167,40 @@ func (c *Client) SendBytesToServer(data []byte) error {
 	return nil
 }
 
-func (c *Client) receiveConfirmation() {
-	var data [1]byte
-	_, err := c.conn.Read(data[:])
+func (c *Client) ReceiveBytesFromServer(size int) ([]byte, error) {
+	log.Debugf("action: receive_bytes | result: pending | client_id: %v | data_size: %v", c.config.ID, size)
+	buffer := make([]byte, 0, size)
+	totalRead := 0
+
+	for totalRead < size {
+		temp := make([]byte, size-totalRead)
+		n, err := c.conn.Read(temp)
+		if n > 0 {
+			buffer = append(buffer, temp[:n]...)
+			totalRead += n
+		}
+		if err != nil {
+			if err == io.EOF && totalRead == size {
+				log.Debugf("action: receive_bytes | result: success | client_id: %v | data_size: %v", c.config.ID, totalRead)
+				break
+			}
+			log.Errorf("action: receive_bytes | result: fail | client_id: %v | error: %v", c.config.ID, err)
+			return nil, err
+		}
+	}
+
+	log.Debugf("action: receive_bytes | result: success | client_id: %v | data_size: %v", c.config.ID, totalRead)
+	return buffer, nil
+}
+
+func (c *Client) ReceiveConfirmation() {
+	log.Debugf("action: receive_confirmation | result: pending | client_id: %v", c.config.ID)
+	data, err := c.ReceiveBytesFromServer(1)
 	if err != nil {
-		log.Errorf("action: receive_confirmation | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		log.Errorf("action: receive_confirmation | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 	msg := data[0]
-
-	c.conn.Close()
 
 	log.Infof("action: receive_confirmation | result: success | client_id: %v | message: %v",
 		c.config.ID,
@@ -202,6 +243,6 @@ func (c *Client) handleSignals() {
 	sig := <-sigs
 	log.Debugf("action: signal_received | signal: %v | client_id: %v", sig, c.config.ID)
 	c.running = false
-	c.conn.Close()
+	c.CloseSocket()
 	c.stop <- true
 }
