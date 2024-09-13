@@ -9,6 +9,7 @@ class ThreadSafeSet:
     def add(self, item):
         with self._lock:
             self._set.add(item)
+            return len(self._set)
 
     def remove(self, item):
         with self._lock:

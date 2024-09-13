@@ -43,8 +43,8 @@ class Server:
         logging.debug(
             f'action: ready_for_winners | result: success | agency: {agency_id}'
         )
-        self._agencies_waiting.add(agency_id)
-        if len(self._agencies_waiting) == self._total_agencies:
+        waiting_count = self._agencies_waiting.add(agency_id)
+        if waiting_count == self._total_agencies:
             self._winners = self._bets_vault.draw_winners()
             self._all_agencies_waiting.set()
         else:
