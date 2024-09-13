@@ -40,6 +40,9 @@ class Server:
                     pool.apply_async(self.__handle_client_connection, (client_sock,))
 
     def __wait_for_winners(self, agency_id, client_sock):
+        logging.debug(
+            f'action: ready_for_winners | result: success | agency: {agency_id}'
+        )
         self._agencies_waiting.add(agency_id)
         if len(self._agencies_waiting) == self._total_agencies:
             self._winners = self._bets_vault.draw_winners()
@@ -65,6 +68,23 @@ class Server:
             self._all_agencies_waiting.clear()
             self._winners = None
 
+    def __decode_bets(self, encoded_bets, agency_id):
+        return [
+            utils.decode_bet(
+                encoded_bets[i : i + utils.ENCODED_BET_SIZE],
+                agency_id,
+            )
+            for i in range(0, len(encoded_bets), utils.ENCODED_BET_SIZE)
+        ]
+
+    def __send_confirmation(self, client_sock):
+        confirmation_data = 1
+        confirmation_byte = confirmation_data.to_bytes(1, byteorder='little')
+        sent = self.__send_bytes(client_sock, confirmation_byte)
+        if sent != 1:
+            return False
+        return True
+
     def __handle_client_connection(self, client_sock):
         """
         Read message from a specific client socket and closes the socket
@@ -85,10 +105,6 @@ class Server:
             batch_size = data[1]
             if batch_size == 0:
                 # if batch_size is 0, it means that the agency is ready to receive winners
-                addr = client_sock.getpeername()
-                logging.debug(
-                    f'action: ready_for_winners | result: success | ip: {addr[0]} | agency: {agency_id}'
-                )
                 self.__wait_for_winners(agency_id, client_sock)
                 return
 
@@ -104,23 +120,15 @@ class Server:
             logging.info(
                 f'action: receive_message | result: success | ip: {addr[0]} | agency: {agency_id} | bets_size: {len(encoded_bets)} | bets_count: {len(encoded_bets) / utils.ENCODED_BET_SIZE}'
             )
-            bets = [
-                utils.decode_bet(
-                    encoded_bets[i : i + utils.ENCODED_BET_SIZE],
-                    agency_id,
-                )
-                for i in range(0, len(encoded_bets), utils.ENCODED_BET_SIZE)
-            ]
+            bets = self.__decode_bets(encoded_bets, agency_id)
 
             self._bets_vault.store_bets(bets)
             logging.info(
                 f'action: apuesta_almacenada | result: success | bets_count: {len(bets)} | agency: {agency_id}'
             )
 
-            confirmation_data = 1
-            confirmation_byte = confirmation_data.to_bytes(1, byteorder='little')
-            sent = self.__send_bytes(client_sock, confirmation_byte)
-            if sent != 1:
+            sent = self.__send_confirmation(client_sock)
+            if not sent:
                 logging.error(
                     f'action: receive_message | result: fail | error: Connection closed by client | agency: {agency_id}'
                 )
@@ -166,7 +174,6 @@ class Server:
             data.append(chunk)
             total_read += len(chunk)
         return b''.join(data)
-
 
     def __send_bytes(self, sock: socket.socket, data: bytes):
         logging.debug(f'action: send_bytes | result: in_progress | bytes: {len(data)}')
